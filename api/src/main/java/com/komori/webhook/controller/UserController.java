@@ -4,6 +4,7 @@ import com.komori.webhook.dto.RegistrationRequest;
 import com.komori.webhook.dto.RegistrationResponse;
 import com.komori.webhook.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,6 +20,6 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<RegistrationResponse> register(@RequestBody RegistrationRequest request) {
         RegistrationResponse response = userService.register(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
