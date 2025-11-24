@@ -1,1 +1,14 @@
+spring:
+  datasource:
+    url: ${PG_URL}
+    driver-class-name: org.postgresql.Driver
+    username: ${PG_USER}
+    password: ${PG_PASSWORD}
+
+  jpa:
+    open-in-view: off
+
+logging:
+  level:
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: error
 
