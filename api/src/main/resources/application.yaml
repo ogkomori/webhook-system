@@ -12,6 +12,8 @@ spring:
 
   jpa:
     open-in-view: off
+    hibernate:
+      ddl-auto: none
 
 logging:
   level:
