@@ -1,4 +1,4 @@
-package com.komori.webhook.exception;
+package com.komori.api.exception;
 
 import org.springframework.http.HttpStatus;
 

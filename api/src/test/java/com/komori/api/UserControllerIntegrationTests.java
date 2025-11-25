@@ -1,7 +1,7 @@
-package com.komori.webhook;
+package com.komori.api;
 
-import com.komori.webhook.entity.UserEntity;
-import com.komori.webhook.repository.UserRepository;
+import com.komori.persistence.entity.UserEntity;
+import com.komori.persistence.repository.UserRepository;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

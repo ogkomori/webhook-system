@@ -1,4 +1,4 @@
-package com.komori.webhook.exception;
+package com.komori.api.exception;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

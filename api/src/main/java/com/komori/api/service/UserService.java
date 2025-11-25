@@ -1,13 +1,13 @@
-package com.komori.webhook.service;
+package com.komori.api.service;
 
-import com.komori.webhook.dto.RegistrationRequest;
-import com.komori.webhook.dto.RegistrationResponse;
-import com.komori.webhook.entity.UserEntity;
-import com.komori.webhook.exception.EmailAlreadyExistsException;
-import com.komori.webhook.exception.InvalidEmailException;
-import com.komori.webhook.exception.InvalidUrlException;
-import com.komori.webhook.exception.MissingEmailOrUrlException;
-import com.komori.webhook.repository.UserRepository;
+import com.komori.persistence.repository.UserRepository;
+import com.komori.api.dto.RegistrationRequest;
+import com.komori.api.dto.RegistrationResponse;
+import com.komori.persistence.entity.UserEntity;
+import com.komori.api.exception.EmailAlreadyExistsException;
+import com.komori.api.exception.InvalidEmailException;
+import com.komori.api.exception.InvalidUrlException;
+import com.komori.api.exception.MissingEmailOrUrlException;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.validator.routines.EmailValidator;
 import org.apache.commons.validator.routines.UrlValidator;
@@ -57,6 +57,10 @@ public class UserService {
         userRepository.save(newUser);
 
         return new RegistrationResponse(uuid, apiKey);
+    }
+
+    public boolean isValidApiKey(String apiKey) {
+        return userRepository.existsByApiKey(apiKey);
     }
 
     private String generateApiKey() {

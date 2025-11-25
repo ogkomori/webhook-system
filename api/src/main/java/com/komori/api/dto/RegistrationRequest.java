@@ -1,4 +1,4 @@
-package com.komori.webhook.dto;
+package com.komori.api.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class RegistrationResponse {
-    private String userId;
-    private String apiKey;
+public class RegistrationRequest {
+    private String email;
+    private String webhookUrl;
 }

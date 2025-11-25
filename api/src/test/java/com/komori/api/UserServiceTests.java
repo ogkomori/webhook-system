@@ -1,12 +1,12 @@
-package com.komori.webhook;
+package com.komori.api;
 
-import com.komori.webhook.dto.RegistrationRequest;
-import com.komori.webhook.entity.UserEntity;
-import com.komori.webhook.exception.EmailAlreadyExistsException;
-import com.komori.webhook.exception.InvalidEmailException;
-import com.komori.webhook.exception.InvalidUrlException;
-import com.komori.webhook.repository.UserRepository;
-import com.komori.webhook.service.UserService;
+import com.komori.persistence.entity.UserEntity;
+import com.komori.persistence.repository.UserRepository;
+import com.komori.api.dto.RegistrationRequest;
+import com.komori.api.exception.EmailAlreadyExistsException;
+import com.komori.api.exception.InvalidEmailException;
+import com.komori.api.exception.InvalidUrlException;
+import com.komori.api.service.UserService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

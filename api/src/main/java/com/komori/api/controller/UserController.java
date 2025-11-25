@@ -1,8 +1,8 @@
-package com.komori.webhook.controller;
+package com.komori.api.controller;
 
-import com.komori.webhook.dto.RegistrationRequest;
-import com.komori.webhook.dto.RegistrationResponse;
-import com.komori.webhook.service.UserService;
+import com.komori.api.dto.RegistrationRequest;
+import com.komori.api.dto.RegistrationResponse;
+import com.komori.api.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
