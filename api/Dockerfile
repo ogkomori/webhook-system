@@ -1,9 +1,12 @@
+FROM maven:3-eclipse-temurin-25 AS build
+WORKDIR /build
+COPY pom.xml .
+RUN mvn -B dependency:go-offline
+COPY src src
+RUN mvn -B -DskipTests package
+
 FROM eclipse-temurin:25-jdk-jammy
-WORKDIR /api
-COPY mvnw .
-COPY .mvn .mvn
-COPY pom.xml ./
-RUN ./mvnw dependency:go-offline
-COPY src ./src
+WORKDIR /app
+COPY --from=build /build/target/*.jar app.jar
 EXPOSE 8080
-CMD ["./mvnw","spring-boot:run"]
+ENTRYPOINT ["java", "-jar", "app.jar"]

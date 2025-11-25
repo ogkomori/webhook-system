@@ -4,6 +4,11 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: ${PG_USER}
     password: ${PG_PASSWORD}
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
 
   jpa:
     open-in-view: off
@@ -12,3 +17,6 @@ logging:
   level:
     org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: error
 
+server:
+  port: 8080
+  address: 0.0.0.0
