@@ -1,4 +1,4 @@
-package com.komori.webhook.config;
+package com.komori.worker.config;
 
 import org.springframework.amqp.core.Queue;
 import org.springframework.context.annotation.Bean;
