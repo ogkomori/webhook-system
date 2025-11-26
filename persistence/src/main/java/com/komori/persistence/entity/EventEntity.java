@@ -1,6 +1,6 @@
 package com.komori.persistence.entity;
 
-import com.komori.persistence.dto.EventStatus;
+import com.komori.persistence.enumerated.EventStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
