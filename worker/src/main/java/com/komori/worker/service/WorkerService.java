@@ -18,6 +18,7 @@ public class WorkerService {
     private final DeliveryAttemptRepository deliveryAttemptRepository;
     private final EventRepository eventRepository;
     private final ObjectMapper objectMapper;
+    private final RestTemplate restTemplate;
 
     public void process(String eventId) {
         EventEntity event = eventRepository.findByEventId(eventId);
@@ -38,7 +39,6 @@ public class WorkerService {
             attempt++;
 
             try {
-                RestTemplate restTemplate = new RestTemplate();
                 restTemplate.postForEntity(webhookUrl, payload, Void.class);
 
                 deliveryAttemptRepository.save(DeliveryAttemptEntity.success(payload.getEventId(), attempt));
@@ -52,6 +52,7 @@ public class WorkerService {
         }
 
         eventRepository.updateEventStatus(payload.getEventId(), EventStatus.FAILED);
+
         // TODO: Notify user of event delivery failure by email
     }
 
