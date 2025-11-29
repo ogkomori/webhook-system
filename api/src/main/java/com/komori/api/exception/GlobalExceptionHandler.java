@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -28,12 +29,24 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ExceptionDescription> handleMissingRequestBody() {
+    public ResponseEntity<ExceptionDescription> handleMalformedRequestBody() {
         return ResponseEntity.badRequest().body(
                 ExceptionDescription.builder()
                         .error("MALFORMED_REQUEST_BODY")
                         .code(HttpStatus.BAD_REQUEST.value())
                         .message("Request body is missing or malformed")
+                        .timestamp(LocalDateTime.now())
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ExceptionDescription> handleMissingRequestHeader() {
+        return ResponseEntity.badRequest().body(
+                ExceptionDescription.builder()
+                        .error("MISSING_API_KEY")
+                        .code(HttpStatus.BAD_REQUEST.value())
+                        .message("Missing API Key")
                         .timestamp(LocalDateTime.now())
                         .build()
         );
