@@ -1,6 +1,6 @@
 package com.komori.worker.service;
 
-import com.komori.common.dto.EventDTO;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.komori.persistence.entity.DeliveryAttemptEntity;
 import com.komori.persistence.entity.EventEntity;
 import com.komori.persistence.enumerated.EventStatus;
@@ -8,17 +8,18 @@ import com.komori.persistence.repository.DeliveryAttemptRepository;
 import com.komori.persistence.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
 public class WorkerService {
     private final DeliveryAttemptRepository deliveryAttemptRepository;
     private final EventRepository eventRepository;
-    private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
     public void process(String eventId) {
@@ -27,40 +28,43 @@ public class WorkerService {
             return;
         }
 
-        String payload = event.getPayload();
-        EventDTO eventDTO = objectMapper.readValue(payload, EventDTO.class);
-        eventDTO.setEventId(eventId);
+        JsonNode payload = event.getPayload();
         String webhookUrl = event.getUser().getWebhookUrl();
-        deliver(webhookUrl, eventDTO);
+        deliver(webhookUrl, eventId, payload);
     }
 
-    public void deliver(String webhookUrl, EventDTO payload) {
+    public void deliver(String webhookUrl, String eventId, JsonNode payload) {
         int attempt = 0;
         while (attempt < 5) {
             attempt++;
 
             try {
-                ResponseEntity<Void> response = restTemplate.postForEntity(webhookUrl, payload, Void.class);
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.set("X-Event_Id", eventId);
+                HttpEntity<JsonNode> httpEntity = new HttpEntity<>(payload, headers);
+                ResponseEntity<Void> response = restTemplate.postForEntity(webhookUrl, httpEntity, Void.class);
+
                 if (response.getStatusCode().is2xxSuccessful()) {
-                    markSuccessfulAttempt(payload.getEventId(), attempt);
+                    markSuccessfulAttempt(eventId, attempt);
                     return;
                 } else if (response.getStatusCode().is4xxClientError()) {
-                    markPermanentFailure(payload.getEventId(), attempt, "Received client error code " + response.getStatusCode().value());
+                    markPermanentFailure(eventId, attempt, "Received client error code " + response.getStatusCode().value());
                     return;
                 } else {
                     if (attempt == 5) {
-                        markPermanentFailure(payload.getEventId(), attempt, "Maximum number of retries attempted");
+                        markPermanentFailure(eventId, attempt, "Maximum number of retries attempted");
                         return;
                     }
-                    markFailedAttempt(payload.getEventId(), attempt, "Received client error code " + response.getStatusCode().value());
+                    markFailedAttempt(eventId, attempt, "Received client error code " + response.getStatusCode().value());
                     sleep(backoff(attempt));
                 }
             } catch (Exception e) {
                 if (attempt == 5) {
-                    markPermanentFailure(payload.getEventId(), attempt, "Maximum number of retries attempted");
+                    markPermanentFailure(eventId, attempt, "Maximum number of retries attempted");
                     return;
                 }
-                markFailedAttempt(payload.getEventId(), attempt, e.getMessage());
+                markFailedAttempt(eventId, attempt, e.getMessage());
                 sleep(backoff(attempt));
             }
         }

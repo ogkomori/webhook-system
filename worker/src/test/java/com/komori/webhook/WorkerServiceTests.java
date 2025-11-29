@@ -1,6 +1,8 @@
 package com.komori.webhook;
 
-import com.komori.common.dto.EventDTO;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.komori.persistence.entity.DeliveryAttemptEntity;
 import com.komori.persistence.enumerated.EventStatus;
 import com.komori.persistence.repository.DeliveryAttemptRepository;
@@ -11,13 +13,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,27 +29,24 @@ public class WorkerServiceTests {
     DeliveryAttemptRepository deliveryAttemptRepository;
     @Mock
     RestTemplate restTemplate;
+    @Mock
+    ObjectMapper mapper;
 
     @Spy
     @InjectMocks
     WorkerService workerService;
 
     @Test
-    public void testSuccessfulDelivery() {
+    public void testSuccessfulDelivery() throws JsonProcessingException {
         String webhookUrl = "https://example.com/events";
-        EventDTO payload = EventDTO.builder()
-                .eventId("randomEvent")
-                .type("example")
-                .payload(new HashMap<>())
-                .timestamp(Instant.now().toEpochMilli())
-                .source("https://allowedsource.com")
-                .build();
+        String eventId = "randomEvent";
+        JsonNode payload = mapper.readTree("{\"event\":\"something happened\"}");
 
         ResponseEntity<Void> okResponse = new ResponseEntity<>(HttpStatus.OK);
-        Mockito.when(restTemplate.postForEntity(Mockito.eq(webhookUrl), Mockito.eq(payload), Mockito.eq(Void.class)))
+        Mockito.when(restTemplate.postForEntity(Mockito.eq(webhookUrl), Mockito.any(HttpEntity.class), Mockito.eq(Void.class)))
                 .thenReturn(okResponse);
 
-        Assertions.assertDoesNotThrow(() -> workerService.deliver(webhookUrl, payload));
+        Assertions.assertDoesNotThrow(() -> workerService.deliver(webhookUrl, eventId, payload));
 
         Mockito.verify(deliveryAttemptRepository).save(Mockito.argThat(DeliveryAttemptEntity::getSuccess));
         Mockito.verify(deliveryAttemptRepository, Mockito.times(1)).save(Mockito.any(DeliveryAttemptEntity.class));
@@ -56,22 +54,17 @@ public class WorkerServiceTests {
     }
 
     @Test
-    public void testMaxRetriesFromClientResponse() {
+    public void testMaxRetriesFromClientResponse() throws JsonProcessingException {
         String webhookUrl = "https://example.com/events";
-        EventDTO payload = EventDTO.builder()
-                .eventId("randomEvent")
-                .type("example")
-                .payload(new HashMap<>())
-                .timestamp(Instant.now().toEpochMilli())
-                .source("https://allowedsource.com")
-                .build();
+        String eventId = "randomEvent";
+        JsonNode payload = mapper.readTree("{\"event\":\"something happened\"}");
 
         ResponseEntity<Void> errorResponse = new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        Mockito.when(restTemplate.postForEntity(Mockito.eq(webhookUrl), Mockito.eq(payload), Mockito.eq(Void.class)))
+        Mockito.when(restTemplate.postForEntity(Mockito.eq(webhookUrl), Mockito.any(HttpEntity.class), Mockito.eq(Void.class)))
                 .thenReturn(errorResponse);
         Mockito.doNothing().when(workerService).sleep(Mockito.anyLong());
 
-        Assertions.assertDoesNotThrow(() -> workerService.deliver(webhookUrl, payload));
+        Assertions.assertDoesNotThrow(() -> workerService.deliver(webhookUrl, eventId, payload));
 
         ArgumentCaptor<DeliveryAttemptEntity> argumentCaptor = ArgumentCaptor.forClass(DeliveryAttemptEntity.class);
         Mockito.verify(deliveryAttemptRepository, Mockito.times(5)).save(argumentCaptor.capture());
@@ -84,21 +77,16 @@ public class WorkerServiceTests {
     }
 
     @Test
-    public void testMaxRetriesFromException() {
+    public void testMaxRetriesFromException() throws JsonProcessingException {
         String webhookUrl = "https://example.com/events";
-        EventDTO payload = EventDTO.builder()
-                .eventId("randomEvent")
-                .type("example")
-                .payload(new HashMap<>())
-                .timestamp(Instant.now().toEpochMilli())
-                .source("https://allowedsource.com")
-                .build();
+        String eventId = "randomEvent";
+        JsonNode payload = mapper.readTree("{\"event\":\"something happened\"}");
 
-        Mockito.when(restTemplate.postForEntity(Mockito.eq(webhookUrl), Mockito.eq(payload), Mockito.eq(Void.class)))
-                .thenThrow(new ResourceAccessException("Connection timout"));
+        Mockito.when(restTemplate.postForEntity(Mockito.eq(webhookUrl), Mockito.any(HttpEntity.class), Mockito.eq(Void.class)))
+                .thenThrow(new ResourceAccessException("Connection timeout"));
         Mockito.doNothing().when(workerService).sleep(Mockito.anyLong());
 
-        Assertions.assertDoesNotThrow(() -> workerService.deliver(webhookUrl, payload));
+        Assertions.assertDoesNotThrow(() -> workerService.deliver(webhookUrl, eventId, payload));
 
         ArgumentCaptor<DeliveryAttemptEntity> argumentCaptor = ArgumentCaptor.forClass(DeliveryAttemptEntity.class);
         Mockito.verify(deliveryAttemptRepository, Mockito.times(5)).save(argumentCaptor.capture());
@@ -111,21 +99,16 @@ public class WorkerServiceTests {
     }
 
     @Test
-    public void testPermanentFailureFromClientResponseWithoutRetries() {
+    public void testPermanentFailureFromClientResponseWithoutRetries() throws JsonProcessingException {
         String webhookUrl = "https://example.com/events";
-        EventDTO payload = EventDTO.builder()
-                .eventId("randomEvent")
-                .type("example")
-                .payload(new HashMap<>())
-                .timestamp(Instant.now().toEpochMilli())
-                .source("https://allowedsource.com")
-                .build();
+        String eventId = "randomEvent";
+        JsonNode payload = mapper.readTree("{\"event\":\"something happened\"}");
 
         ResponseEntity<Void> errorResponse = new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-        Mockito.when(restTemplate.postForEntity(Mockito.eq(webhookUrl), Mockito.eq(payload), Mockito.eq(Void.class)))
+        Mockito.when(restTemplate.postForEntity(Mockito.eq(webhookUrl), Mockito.any(HttpEntity.class), Mockito.eq(Void.class)))
                 .thenReturn(errorResponse);
 
-        Assertions.assertDoesNotThrow(() -> workerService.deliver(webhookUrl, payload));
+        Assertions.assertDoesNotThrow(() -> workerService.deliver(webhookUrl, eventId, payload));
 
         Mockito.verify(deliveryAttemptRepository).save(Mockito.argThat(entity -> !entity.getSuccess()));
         Mockito.verify(deliveryAttemptRepository, Mockito.times(1)).save(Mockito.any(DeliveryAttemptEntity.class));

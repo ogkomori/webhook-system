@@ -19,8 +19,7 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class UserEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String userId;
     private String email;

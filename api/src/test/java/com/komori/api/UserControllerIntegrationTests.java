@@ -24,7 +24,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class UserControllerIntegrationTests {
     @Autowired
     private MockMvc mockMvc;
-
     @Autowired
     private UserRepository userRepository;
 

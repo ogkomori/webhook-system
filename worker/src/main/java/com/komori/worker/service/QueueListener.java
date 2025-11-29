@@ -12,9 +12,9 @@ public class QueueListener {
     private final WorkerService workerService;
 
     @RabbitListener(queues = "events")
-    public void consume(String event) {
+    public void consume(String eventId) {
         // just to confirm consumption
-        log.info("Event received: {}", event);
-        workerService.process(event);
+        log.info("Event received: {}", eventId);
+        workerService.process(eventId);
     }
 }

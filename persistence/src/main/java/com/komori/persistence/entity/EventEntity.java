@@ -1,5 +1,7 @@
 package com.komori.persistence.entity;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.komori.persistence.converter.JsonNodeConverter;
 import com.komori.persistence.enumerated.EventStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -17,15 +19,15 @@ import java.sql.Timestamp;
 @NoArgsConstructor
 @Builder
 public class EventEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String eventId;
     @ManyToOne @JoinColumn(name = "user_id")
     private UserEntity user;
     @Enumerated(value = EnumType.STRING) @Builder.Default
     private EventStatus status = EventStatus.PENDING;
-    private String payload;
+    @Convert(converter = JsonNodeConverter.class) @Column(columnDefinition = "jsonb", nullable = false)
+    private JsonNode payload;
     @CreationTimestamp
     private Timestamp createdAt;
 }

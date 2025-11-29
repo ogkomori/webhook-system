@@ -1,5 +1,6 @@
 package com.komori.api.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.komori.persistence.entity.EventEntity;
 import com.komori.persistence.entity.UserEntity;
 import com.komori.persistence.repository.EventRepository;
@@ -16,7 +17,7 @@ public class EventService {
     private final EventRepository eventRepository;
     private final QueuePublisher queuePublisher;
 
-    public String createEvent(String apiKey, String responseBody) {
+    public String createEvent(String apiKey, JsonNode responseBody) {
         UserEntity user = userRepository.findByApiKey(apiKey);
         String eventId = UUID.randomUUID().toString();
         EventEntity event = EventEntity.builder()
