@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EntityScan(basePackages = "com.komori.persistence.entity")
 public class WebhookWorkerApplication {
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         SpringApplication.run(WebhookWorkerApplication.class, args);
     }
 }
