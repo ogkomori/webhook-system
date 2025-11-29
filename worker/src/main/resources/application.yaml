@@ -14,3 +14,6 @@ spring:
     open-in-view: off
     hibernate:
       ddl-auto: none
+
+  main:
+    web-application-type: none
