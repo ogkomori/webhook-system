@@ -41,7 +41,7 @@ public class WorkerService {
             try {
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
-                headers.set("X-Event_Id", eventId);
+                headers.set("X-Event-Id", eventId);
                 HttpEntity<JsonNode> httpEntity = new HttpEntity<>(payload, headers);
                 ResponseEntity<Void> response = restTemplate.postForEntity(webhookUrl, httpEntity, Void.class);
 
@@ -62,10 +62,10 @@ public class WorkerService {
             } catch (Exception e) {
                 if (attempt == 5) {
                     markPermanentFailure(eventId, attempt, "Maximum number of retries attempted");
-                    return;
+                } else {
+                    markFailedAttempt(eventId, attempt, e.getMessage());
+                    sleep(backoff(attempt));
                 }
-                markFailedAttempt(eventId, attempt, e.getMessage());
-                sleep(backoff(attempt));
             }
         }
         // TODO: Notify user of event delivery failure by email
