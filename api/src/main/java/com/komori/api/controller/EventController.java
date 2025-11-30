@@ -28,7 +28,7 @@ public class EventController {
             throw new InvalidApiKeyException();
         }
 
-        if (body.isEmpty()) {
+        if (body == null || body.isEmpty()) {
             throw new HttpMessageNotReadableException("", new MockHttpInputMessage(new byte[0]));
         }
 
