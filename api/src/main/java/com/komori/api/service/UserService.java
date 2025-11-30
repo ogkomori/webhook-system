@@ -50,6 +50,7 @@ public class UserService {
 
         UserEntity newUser = UserEntity.builder()
                 .email(request.getEmail())
+                .webhookUrl(request.getWebhookUrl())
                 .apiKey(apiKey)
                 .userId(uuid)
                 .build();
