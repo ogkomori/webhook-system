@@ -1,7 +1,6 @@
 package com.komori.persistence.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.komori.persistence.converter.JsonNodeConverter;
 import com.komori.persistence.enumerated.EventStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -9,6 +8,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.sql.Timestamp;
 
@@ -26,7 +27,7 @@ public class EventEntity {
     private UserEntity user;
     @Enumerated(value = EnumType.STRING) @Builder.Default
     private EventStatus status = EventStatus.PENDING;
-    @Convert(converter = JsonNodeConverter.class) @Column(columnDefinition = "jsonb", nullable = false)
+    @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb", nullable = false)
     private JsonNode payload;
     @CreationTimestamp
     private Timestamp createdAt;
