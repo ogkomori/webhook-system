@@ -17,3 +17,6 @@ spring:
 
   main:
     web-application-type: none
+
+redis:
+  url: ${REDIS_URL}

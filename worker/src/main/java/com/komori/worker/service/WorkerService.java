@@ -21,6 +21,7 @@ public class WorkerService {
     private final DeliveryAttemptRepository deliveryAttemptRepository;
     private final EventRepository eventRepository;
     private final RestTemplate restTemplate;
+    private final RateLimiter rateLimiter;
 
     public void process(String eventId) {
         EventEntity event = eventRepository.findByEventId(eventId);
@@ -28,16 +29,23 @@ public class WorkerService {
             return;
         }
 
-        JsonNode payload = event.getPayload();
-        String webhookUrl = event.getUser().getWebhookUrl();
-        deliver(webhookUrl, eventId, payload);
+        deliver(event);
     }
 
-    public void deliver(String webhookUrl, String eventId, JsonNode payload) {
+    public void deliver(EventEntity event) {
+        String eventId = event.getEventId();
+        JsonNode payload = event.getPayload();
+        String webhookUrl = event.getUser().getWebhookUrl();
+        String webhookId = event.getUser().getUserId();
+
         int attempt = 0;
         while (attempt < 5) {
-            attempt++;
+            if (!rateLimiter.isAllowed(webhookId, 10)) {
+                sleep(60000);
+                continue;
+            }
 
+            attempt++;
             try {
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
