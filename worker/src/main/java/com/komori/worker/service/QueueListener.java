@@ -15,6 +15,6 @@ public class QueueListener {
     public void consume(String eventId) {
         // just to confirm consumption
         log.info("Event received: {}", eventId);
-        workerService.process(eventId);
+        workerService.processEvent(eventId);
     }
 }

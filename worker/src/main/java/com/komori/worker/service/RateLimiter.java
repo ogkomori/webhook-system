@@ -9,9 +9,9 @@ import org.springframework.stereotype.Service;
 public class RateLimiter {
     private final RedisCommands<String, String> redisCommands;
 
-    public boolean isAllowed(String webhookId, int limitPerMinute) {
+    public boolean isAllowed(String userId, int limitPerMinute) {
         try {
-            String key = "rate:" + webhookId;
+            String key = "rate:" + userId;
             Long count = redisCommands.incr(key);
             if (count == 1) {
                 redisCommands.expire(key, 60);
