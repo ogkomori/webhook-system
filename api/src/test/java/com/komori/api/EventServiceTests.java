@@ -37,7 +37,7 @@ public class EventServiceTests {
     @Test
     public void testEventCreation() throws JsonProcessingException {
         String apiKey = "validApiKey";
-        JsonNode payload = objectMapper.readTree("\"event\":\"something happened\"");
+        JsonNode payload = objectMapper.readTree("{\"event\":\"something happened\"}");
         UserEntity user = UserEntity.builder()
                 .id(1L)
                 .apiKey(apiKey)
