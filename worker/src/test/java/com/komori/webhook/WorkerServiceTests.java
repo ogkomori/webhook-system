@@ -1,163 +1,162 @@
 package com.komori.webhook;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.komori.persistence.entity.DeliveryAttemptEntity;
-import com.komori.persistence.entity.EventEntity;
-import com.komori.persistence.entity.UserEntity;
-import com.komori.persistence.enumerated.EventStatus;
-import com.komori.persistence.repository.DeliveryAttemptRepository;
+import com.komori.persistence.dto.EventDTO;
 import com.komori.persistence.repository.EventRepository;
+import com.komori.worker.config.RetryQueueConfig;
 import com.komori.worker.service.RateLimiter;
+import com.komori.worker.service.RetryService;
+import com.komori.worker.service.WebhookDeliveryService;
 import com.komori.worker.service.WorkerService;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = {
+        WorkerService.class,
+        RetryService.class,
+        RetryQueueConfig.class
+})
 public class WorkerServiceTests {
-    @Mock
-    EventRepository eventRepository;
-    @Mock
-    DeliveryAttemptRepository deliveryAttemptRepository;
-    @Mock
-    RestTemplate restTemplate;
-    @Mock
-    RateLimiter rateLimiter;
-    @Mock
-    ObjectMapper mapper;
+    @Autowired
+    private WorkerService workerService;
+    @Autowired
+    private Queue<EventDTO> retryQueue;
 
-    @Spy
-    @InjectMocks
-    WorkerService workerService;
+    @MockitoBean
+    private WebhookDeliveryService webhookDeliveryService;
+    @MockitoBean
+    private RateLimiter rateLimiter;
+    @MockitoBean
+    private EventRepository eventRepository;
 
-    @Test
-    public void testSuccessfulDelivery() throws JsonProcessingException {
-        EventEntity event = EventEntity.builder()
-                .user(new UserEntity(1L, "user", "email", "apiKey", "https://example.com/events", new ArrayList<>(), Timestamp.from(Instant.now())))
-                .eventId("randomEvent")
-                .payload(mapper.readTree("{\"event\":\"something happened\"}"))
-                .build();
 
-        ResponseEntity<Void> okResponse = new ResponseEntity<>(HttpStatus.OK);
-        Mockito.when(restTemplate.postForEntity(Mockito.eq(event.getUser().getWebhookUrl()), Mockito.any(HttpEntity.class), Mockito.eq(Void.class)))
-                .thenReturn(okResponse);
-        Mockito.when(rateLimiter.isAllowed(Mockito.anyString(), Mockito.anyInt()))
-                .thenReturn(true);
-
-        Assertions.assertDoesNotThrow(() -> workerService.deliver(event));
-
-        Mockito.verify(deliveryAttemptRepository).save(Mockito.argThat(DeliveryAttemptEntity::getSuccess));
-        Mockito.verify(deliveryAttemptRepository, Mockito.times(1)).save(Mockito.any(DeliveryAttemptEntity.class));
-        Mockito.verify(eventRepository, Mockito.times(1)).updateEventStatus("randomEvent", EventStatus.DELIVERED);
+    @BeforeEach
+    void clearQueue() {
+        retryQueue.clear();
     }
 
     @Test
-    public void testRateLimitedDelivery() throws JsonProcessingException {
-        EventEntity event = EventEntity.builder()
-                .user(new UserEntity(1L, "user", "email", "apiKey", "https://example.com/events", new ArrayList<>(), Timestamp.from(Instant.now())))
+    public void testSuccessfulDelivery() {
+        EventDTO event = EventDTO.builder()
                 .eventId("randomEvent")
-                .payload(mapper.readTree("{\"event\":\"something happened\"}"))
+                .userId("randomUser")
+                .attemptCount(0)
+                .nextAttemptTime(Instant.now())
+                .webhookUrl("https://example.com")
                 .build();
 
-        Mockito.doNothing().when(workerService).sleep(Mockito.anyLong());
-        Mockito.when(rateLimiter.isAllowed(Mockito.anyString(), Mockito.anyInt()))
+        Mockito.when(rateLimiter.isAllowed(event.getUserId(), workerService.LIMIT_PER_MIN))
+                        .thenReturn(true);
+
+        Assertions.assertDoesNotThrow(() -> workerService.trySendingEvent(event));
+
+        Assertions.assertTrue(retryQueue.isEmpty());
+        Mockito.verify(webhookDeliveryService, Mockito.times(1)).deliver(event);
+    }
+
+    @Test
+    public void testRateLimitedSuccessfulDelivery() {
+        EventDTO event = EventDTO.builder()
+                .eventId("randomEvent")
+                .userId("randomUser")
+                .attemptCount(0)
+                .nextAttemptTime(Instant.now())
+                .webhookUrl("https://example.com")
+                .build();
+
+        Mockito.when(rateLimiter.isAllowed(event.getUserId(), workerService.LIMIT_PER_MIN))
                 .thenReturn(false)
-                .thenReturn(false)
-                .thenReturn(false)
                 .thenReturn(true);
-        ResponseEntity<Void> okResponse = new ResponseEntity<>(HttpStatus.OK);
-        Mockito.when(restTemplate.postForEntity(Mockito.eq(event.getUser().getWebhookUrl()), Mockito.any(HttpEntity.class), Mockito.eq(Void.class)))
-                .thenReturn(okResponse);
 
-        Assertions.assertDoesNotThrow(() -> workerService.deliver(event));
+        Assertions.assertDoesNotThrow(() -> workerService.trySendingEvent(event));
 
-        Mockito.verify(workerService, Mockito.times(3)).sleep(60000);
+        Assertions.assertEquals(1, retryQueue.size());
+        Mockito.verifyNoInteractions(webhookDeliveryService);
+
+        event.setNextAttemptTime(Instant.now());
+        Assertions.assertDoesNotThrow(workerService::processQueue);
+
+        Assertions.assertTrue(retryQueue.isEmpty());
+        Mockito.verify(webhookDeliveryService, Mockito.times(1)).deliver(event);
     }
 
     @Test
-    public void testMaxRetriesFromClientResponse() throws JsonProcessingException {
-        EventEntity event = EventEntity.builder()
-                .user(new UserEntity(1L, "user", "email", "apiKey", "https://example.com/events", new ArrayList<>(), Timestamp.from(Instant.now())))
+    public void testMaxRateLimitedAttempts() {
+        EventDTO event = EventDTO.builder()
                 .eventId("randomEvent")
-                .payload(mapper.readTree("{\"event\":\"something happened\"}"))
+                .userId("randomUser")
+                .attemptCount(workerService.MAX_ATTEMPTS - 1)
+                .nextAttemptTime(Instant.now())
+                .webhookUrl("https://example.com")
                 .build();
 
-        ResponseEntity<Void> errorResponse = new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        Mockito.when(restTemplate.postForEntity(Mockito.eq(event.getUser().getWebhookUrl()), Mockito.any(HttpEntity.class), Mockito.eq(Void.class)))
-                .thenReturn(errorResponse);
-        Mockito.doNothing().when(workerService).sleep(Mockito.anyLong());
-        Mockito.when(rateLimiter.isAllowed(Mockito.anyString(), Mockito.anyInt()))
-                .thenReturn(true);
+        Mockito.when(rateLimiter.isAllowed(event.getUserId(), workerService.LIMIT_PER_MIN))
+                .thenReturn(false);
 
-        Assertions.assertDoesNotThrow(() -> workerService.deliver(event));
+        Assertions.assertDoesNotThrow(() -> workerService.trySendingEvent(event));
 
-        ArgumentCaptor<DeliveryAttemptEntity> argumentCaptor = ArgumentCaptor.forClass(DeliveryAttemptEntity.class);
-        Mockito.verify(deliveryAttemptRepository, Mockito.times(5)).save(argumentCaptor.capture());
-        List<DeliveryAttemptEntity> entities = argumentCaptor.getAllValues();
-        for (DeliveryAttemptEntity entity : entities) {
-            Assertions.assertFalse(entity.getSuccess());
-        }
-        Mockito.verify(workerService, Mockito.times(4)).sleep(Mockito.anyLong());
-        Mockito.verify(eventRepository, Mockito.times(1)).updateEventStatus("randomEvent", EventStatus.FAILED);
+        Assertions.assertTrue(retryQueue.isEmpty());
+        Mockito.verify(webhookDeliveryService, Mockito.times(1)).markPermanentFailure(event.getEventId(), event.getAttemptCount(), "Too many concurrent requests");
     }
 
     @Test
-    public void testMaxRetriesFromException() throws JsonProcessingException {
-        EventEntity event = EventEntity.builder()
-                .user(new UserEntity(1L, "user", "email", "apiKey", "https://example.com/events", new ArrayList<>(), Timestamp.from(Instant.now())))
+    public void testQueuePreservesOrder() {
+        EventDTO event1 = EventDTO.builder()
                 .eventId("randomEvent")
-                .payload(mapper.readTree("{\"event\":\"something happened\"}"))
+                .userId("randomUser")
+                .attemptCount(0)
+                .nextAttemptTime(Instant.now())
+                .webhookUrl("https://example.com")
                 .build();
 
-        Mockito.when(restTemplate.postForEntity(Mockito.eq(event.getUser().getWebhookUrl()), Mockito.any(HttpEntity.class), Mockito.eq(Void.class)))
-                .thenThrow(new ResourceAccessException("Connection timeout"));
-        Mockito.doNothing().when(workerService).sleep(Mockito.anyLong());
-        Mockito.when(rateLimiter.isAllowed(Mockito.anyString(), Mockito.anyInt()))
-                .thenReturn(true);
-
-        Assertions.assertDoesNotThrow(() -> workerService.deliver(event));
-
-        ArgumentCaptor<DeliveryAttemptEntity> argumentCaptor = ArgumentCaptor.forClass(DeliveryAttemptEntity.class);
-        Mockito.verify(deliveryAttemptRepository, Mockito.times(5)).save(argumentCaptor.capture());
-        List<DeliveryAttemptEntity> entities = argumentCaptor.getAllValues();
-        for (DeliveryAttemptEntity entity : entities) {
-            Assertions.assertFalse(entity.getSuccess());
-        }
-        Mockito.verify(workerService, Mockito.times(4)).sleep(Mockito.anyLong());
-        Mockito.verify(eventRepository, Mockito.times(1)).updateEventStatus("randomEvent", EventStatus.FAILED);
-    }
-
-    @Test
-    public void testPermanentFailureFromClientResponseWithoutRetries() throws JsonProcessingException {
-        EventEntity event = EventEntity.builder()
-                .user(new UserEntity(1L, "user", "email", "apiKey", "https://example.com/events", new ArrayList<>(), Timestamp.from(Instant.now())))
-                .eventId("randomEvent")
-                .payload(mapper.readTree("{\"event\":\"something happened\"}"))
+        EventDTO event2 = EventDTO.builder()
+                .eventId("randomEvent2")
+                .userId("randomUser")
+                .attemptCount(0)
+                .nextAttemptTime(Instant.now().plusMillis(10))
+                .webhookUrl("https://example.com")
                 .build();
 
-        ResponseEntity<Void> errorResponse = new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-        Mockito.when(restTemplate.postForEntity(Mockito.eq(event.getUser().getWebhookUrl()), Mockito.any(HttpEntity.class), Mockito.eq(Void.class)))
-                .thenReturn(errorResponse);
-        Mockito.when(rateLimiter.isAllowed(Mockito.anyString(), Mockito.anyInt()))
-                .thenReturn(true);
+        EventDTO event3 = EventDTO.builder()
+                .eventId("randomEvent3")
+                .userId("randomUser")
+                .attemptCount(0)
+                .nextAttemptTime(Instant.now().plusMillis(20))
+                .webhookUrl("https://example.com")
+                .build();
 
-        Assertions.assertDoesNotThrow(() -> workerService.deliver(event));
+        Mockito.when(rateLimiter.isAllowed(Mockito.anyString(), Mockito.eq(workerService.LIMIT_PER_MIN)))
+                .thenReturn(false);
 
-        Mockito.verify(deliveryAttemptRepository).save(Mockito.argThat(entity -> !entity.getSuccess()));
-        Mockito.verify(deliveryAttemptRepository, Mockito.times(1)).save(Mockito.any(DeliveryAttemptEntity.class));
-        Mockito.verify(eventRepository, Mockito.times(1)).updateEventStatus("randomEvent", EventStatus.FAILED);
+        Assertions.assertDoesNotThrow(() -> {
+            workerService.trySendingEvent(event3);
+            workerService.trySendingEvent(event1);
+            workerService.trySendingEvent(event2);
+        });
+
+        Assertions.assertEquals(3, retryQueue.size());
+
+        List<EventDTO> events = new ArrayList<>(retryQueue);
+        List<Instant> times = events.stream()
+                .map(EventDTO::getNextAttemptTime)
+                .toList();
+
+        List<Instant> sorted = new ArrayList<>(times);
+        Collections.sort(sorted);
+
+        Assertions.assertEquals(sorted, times);
     }
 }
